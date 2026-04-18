@@ -1,0 +1,66 @@
+================================================================================
+  華安地政電傳 PDF 解析 — 目錄結構與使用方式
+================================================================================
+
+【目錄結構】
+
+  pdfexplainnew-20260321/          （儲存庫根目錄）
+  ├── run_web.bat                  啟動／連線網頁（可重複雙擊開新分頁；伺服器在背景持續執行）
+  ├── 使用說明.txt                 本檔
+  ├── 地段地號輸出/                INDEX.xlsx、SAMPLE.xlsx 與解析產出（與 run_web.bat 同層）
+  ├── project/                     主程式與依賴設定
+  │   ├── main.py                  CLI 批次解析（掃描 project/pdfs）
+  │   ├── config.py                路徑與參數（輸出目錄指向上一層「地段地號輸出」）
+  │   ├── requirements.txt
+  │   ├── run_web_launcher.py      由 run_web.bat 間接呼叫；啟動 uvicorn，以網址開啟既有 Chrome 分頁
+  │   ├── addr_corrections.md
+  │   ├── core/                    模型與影像處理
+  │   ├── services/                解析、Excel、PDF 驗證
+  │   ├── web/                     FastAPI 與靜態前端
+  │   └── pdfs/                    放置待批次處理之 PDF（僅 CLI 模式使用）
+  └── set/                         環境安裝與輔助批次檔
+      ├── setup_project_env.bat    新電腦一鍵安裝（CPU PyTorch + requirements）
+      ├── install_gpu_env.bat      NVIDIA CUDA 版 PyTorch（於 setup 之後或單獨使用）
+      ├── run_web_console.bat      除錯用：保留主控台與伺服器日誌
+      ├── run_web_hidden.vbs       由 run_web.bat 呼叫（通常不必手動點）
+      └── run_main.bat             雙擊執行 CLI：等同於在 project 內跑 python main.py
+
+
+【使用方式】
+
+  1. 第一次在新電腦安裝
+     - 先安裝 Python 3.10 以上，並勾選 Add python.exe to PATH。
+     - 無 NVIDIA 或只用 CPU：雙擊 set\setup_project_env.bat
+     - 有 NVIDIA 且要用 CUDA：在上述之後再雙擊 set\install_gpu_env.bat
+       （亦可僅執行 install_gpu_env.bat，其內含 requirements 安裝流程）
+
+  2. 日常使用 — 網頁上傳解析
+     - 在根目錄雙擊 run_web.bat：若 8000 埠尚無服務會啟動後端（背景執行），再開瀏覽器分頁。
+     - 可重複雙擊 run_web.bat：若伺服器已在執行，只會再開一個分頁，不會跳出確認對話框。
+     - 關閉瀏覽器分頁不會自動關閉後端；若要停止服務請用工作管理員結束 python 程序，
+       或使用 set\run_web_console.bat 啟動者可直接關閉該 CMD 視窗以停止。
+     - 瀏覽器優先使用 Google Chrome 新分頁（Chrome 已在執行時通常沿用現有視窗）；
+       無 Chrome 則試 Edge，再無則使用系統預設瀏覽器。
+     - 首次載入時頁面可能顯示「模型載入中」，屬正常（EasyOCR／VLM 預熱需一些時間）。
+
+  3. 除錯 — 要看伺服器日誌
+     - 雙擊 set\run_web_console.bat
+     - 自行在瀏覽器開啟 http://127.0.0.1:8000/
+     - 關閉該 CMD 視窗即停止伺服器
+
+  4. 命令列批次 — 掃描資料夾內所有 PDF
+     - 將 PDF 放入 project\pdfs\
+     - 雙擊 set\run_main.bat
+       或在命令列執行：cd project 後 python main.py
+     - 產出寫入根目錄「地段地號輸出」資料夾
+
+
+【路徑備註】
+
+  - 網頁與 CLI 產出之 Excel／文字檔，預設皆寫入「地段地號輸出」（與 run_web.bat 同層）。
+  - SAMPLE.xlsx 須放在「地段地號輸出」內，供表頭對照與 Web 預覽欄位使用。
+
+
+================================================================================
+  （檔案編碼：UTF-8）
+================================================================================

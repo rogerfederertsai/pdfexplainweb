@@ -1,0 +1,44 @@
+# =============================================================================
+# PyTorch（重要 — 勿在此檔寫 torch，否則 pip 會裝 CPU 版並蓋掉 CUDA）
+# -----------------------------------------------------------------------------
+# NVIDIA GPU（Web / EasyOCR / VLM）：請雙擊 set\install_gpu_env.bat
+# （先裝 cu128 版 torch，再裝本檔，最後再 force-reinstall 一次 CUDA wheel；RTX 50 勿用 cu124）。
+# 僅 CPU：雙擊 set\setup_project_env.bat，或手動 pip install torch 後再 pip install -r requirements.txt
+# =============================================================================
+
+# PDF 轉圖與結構解析
+PyMuPDF>=1.23.0
+pdfplumber>=0.10.0
+Pillow>=10.0.0
+
+# OCR 定位與文字辨識（EasyOCR 免 Paddle 依賴，支援繁中）
+easyocr>=1.7.0
+
+# 影像前處理與自我修復
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+
+# Excel 輸出（與 sample.xlsx 同格式）
+openpyxl>=3.1.0
+
+# 本地 VLM（需先依上文安裝 CUDA 版 torch；此處不列出 torch 以免誤裝 +cpu）
+transformers>=4.37.0
+qwen-vl-utils>=0.0.2
+accelerate>=0.25.0
+# VLM 4-bit 量化（若 pip 在 Windows 失敗，可暫時註解本行，僅用 EasyOCR GPU）
+bitsandbytes>=0.43.0
+
+# Streamlit Web App
+streamlit>=1.32.0
+pandas>=2.0.0
+
+# FastAPI Web（上傳預覽 + INDEX 存檔）
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# Supabase 雲端同步（可選）
+supabase>=2.3.0
+
+# Windows 終端 ANSI 顏色支援
+colorama>=0.4.6

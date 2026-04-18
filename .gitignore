@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+ENV/
+
+# 日誌與本機暫存
+*.log
+project/web_server.log
+pdf_web_launcher.log
+
+# 依賴與建置產物
+frontend/node_modules/
+frontend/dist/
+
+# 機密與本機設定（勿提交）
+.env
+.env.local
+config.bat
+
+# 地段地號輸出：通常只忽略累積索引與錯誤檔；範本 SAMPLE.xlsx 仍可納入版控
+地段地號輸出/INDEX.xlsx
+地段地號輸出/*錯誤.txt
+# 客戶 PDF 勿提交（若目錄內有範例要版控，可改為更細的規則）
+project/pdfs/*.pdf
+
+# OS
+Thumbs.db
+.DS_Store

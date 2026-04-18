@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>華安地政電傳 — 解析與 INDEX 存檔</title>
+  <style>
+    :root {
+      --bg: #f2f5fb;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --accent-2: #4f46e5;
+      --accent-soft: #dbeafe;
+      --danger: #dc2626;
+      --success: #059669;
+      --border: #e2e8f0;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+      background:
+        radial-gradient(80vw 50vh at 10% -10%, #dbeafe 0%, rgba(219, 234, 254, 0) 70%),
+        radial-gradient(70vw 45vh at 95% -20%, #e0e7ff 0%, rgba(224, 231, 255, 0) 65%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+    .bg-paths {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.6;
+    }
+    .bg-paths svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .bg-paths path {
+      fill: none;
+      stroke: rgba(15, 23, 42, 0.18);
+      stroke-linecap: round;
+      stroke-dasharray: 240;
+      stroke-dashoffset: 240;
+      animation: pathFlow 16s linear infinite;
+    }
+    .bg-paths .rev path {
+      stroke: rgba(79, 70, 229, 0.2);
+      animation-direction: reverse;
+      animation-duration: 18s;
+    }
+    .bg-paths path:nth-child(2n) { animation-delay: 0.8s; }
+    .bg-paths path:nth-child(3n) { animation-delay: 1.4s; }
+    .bg-paths path:nth-child(4n) { animation-delay: 2.2s; }
+    @keyframes pathFlow {
+      0% { stroke-dashoffset: 240; opacity: 0.14; }
+      45% { opacity: 0.38; }
+      100% { stroke-dashoffset: -240; opacity: 0.14; }
+    }
+    .wrap {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 28px 18px 56px;
+      position: relative;
+      z-index: 1;
+    }
+    .hero {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 24px;
+      padding: 22px 24px;
+      border-radius: calc(var(--radius) + 4px);
+      background: linear-gradient(130deg, #1d4ed8 0%, #4f46e5 62%, #7c3aed 100%);
+      color: #fff;
+      box-shadow: 0 12px 30px rgba(37, 99, 235, 0.2);
+    }
+    h1 { font-size: 1.45rem; font-weight: 700; margin: 0 0 8px; letter-spacing: 0.4px; }
+    .sub { color: #dbeafe; font-size: 0.92rem; margin: 0; }
+    .hero-chip {
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 999px;
+      font-size: 0.82rem;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(6px);
+      white-space: nowrap;
+    }
+    .hero-title-glow {
+      background: linear-gradient(90deg, #ffffff 0%, #dbeafe 45%, #e9d5ff 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      display: inline-block;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+    .card h2 {
+      font-size: 1rem;
+      margin: 0 0 14px;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 10px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .form-field { margin-bottom: 12px; }
+    .form-field label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .form-field input,
+    .form-field textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      background: #fff;
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+    .form-field input:focus,
+    .form-field textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .form-field textarea {
+      min-height: 72px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+    .inline-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 18px;
+      border-radius: 10px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: transform .15s ease, box-shadow .2s ease, opacity .2s ease;
+    }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn-primary {
+      background: linear-gradient(120deg, var(--accent) 0%, var(--accent-2) 100%);
+      color: #fff;
+      box-shadow: 0 8px 16px rgba(37, 99, 235, 0.2);
+    }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-success {
+      background: linear-gradient(120deg, #059669 0%, #0d9488 100%);
+      color: #fff;
+      box-shadow: 0 8px 16px rgba(5, 150, 105, 0.2);
+    }
+    .btn-success:disabled { opacity: 0.45; cursor: not-allowed; }
+    .uploader-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .err {
+      color: var(--danger);
+      font-size: 0.9rem;
+      margin-top: 8px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+    .ok {
+      color: var(--success);
+      font-size: 0.9rem;
+      margin-top: 8px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+
+    .preview-split {
+      display: grid;
+      /* 右欄佔滿剩餘寬度，PDF 預覽與該欄同寬 */
+      grid-template-columns: minmax(280px, 38%) minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .preview-split {
+        grid-template-columns: 1fr;
+      }
+      .preview-col-right {
+        position: static !important;
+        top: auto !important;
+      }
+      .pdf-frame-wrap { height: 65vh !important; min-height: 360px; }
+    }
+    .preview-col-left { min-width: 0; }
+    .preview-col-right {
+      position: sticky;
+      top: 16px;
+    }
+    .pdf-pane { margin-bottom: 0; }
+    .pdf-frame-wrap {
+      height: min(78vh, 920px);
+      min-height: 400px;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #1e293b;
+    }
+    /* PDF.js：可捲動預覽，不依賴瀏覽器外掛 */
+    .pdf-js-scroll {
+      height: 100%;
+      overflow: auto;
+      overflow-x: hidden;
+      padding: 8px 6px;
+      text-align: center;
+    }
+    .pdf-js-scroll canvas {
+      display: block;
+      margin: 0 auto 16px;
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+      background: #fff;
+    }
+    .pdf-hint {
+      margin: 10px 0 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* 點選「解析預覽」後：全畫面運行中提示 */
+    #parse-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10050;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(2px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    #parse-overlay.visible { display: flex; }
+    .parse-overlay-inner {
+      text-align: center;
+      padding: 28px 36px;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+      max-width: 90vw;
+    }
+    .parse-overlay-text {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 8px;
+    }
+    .parse-overlay-sub {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+    .parse-dots {
+      display: inline-flex;
+      gap: 6px;
+      margin-top: 14px;
+      justify-content: center;
+    }
+    .parse-dots span {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      opacity: 0.35;
+      animation: parseDot 1.2s ease-in-out infinite;
+    }
+    .parse-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .parse-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes parseDot {
+      0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+
+    #boot-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,.92);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+    #boot-overlay.hidden { display: none; }
+    .spinner {
+      width: 52px;
+      height: 52px;
+      border: 4px solid #e5e7eb;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.85s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .boot-text { font-size: 1.1rem; color: var(--muted); }
+
+    #app-main.disabled {
+      pointer-events: none;
+      opacity: 0.35;
+      filter: grayscale(0.2);
+    }
+
+    #gpu-warn-fixed {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10001;
+      background: #fef2f2;
+      border-bottom: 1px solid #fecaca;
+      color: #b91c1c;
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      text-align: center;
+      line-height: 1.45;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+    body.has-gpu-warn .wrap {
+      padding-top: 8px;
+    }
+    body.has-gpu-warn #boot-overlay {
+      padding-top: 48px;
+    }
+    #gpu-info {
+      display: none;
+      color: #1d4ed8;
+      font-size: 0.85rem;
+      margin: -8px 0 16px;
+      font-weight: 600;
+    }
+    #ocr-gpu-warn {
+      display: none;
+      color: #b45309;
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.88rem;
+      margin: -8px 0 16px;
+      line-height: 1.45;
+    }
+    /* SAMPLE 表頭可能含換行 */
+    .pf-label {
+      white-space: pre-line;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .pf-kind-badge {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="gpu-warn-fixed" role="alert">
+    本設備無檢測到GPU，請進行確認，若無GPU運行，恐影響判讀準確度。
+  </div>
+  <div id="boot-overlay">
+    <div class="spinner" aria-hidden="true"></div>
+    <div class="boot-text">加載中…</div>
+  </div>
+
+  <!-- 解析預覽進行中 -->
+  <div id="parse-overlay" role="status" aria-live="polite" aria-busy="true">
+    <div class="parse-overlay-inner">
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="parse-overlay-text" id="parse-overlay-title">解析中…</div>
+      <div class="parse-overlay-sub" id="parse-overlay-sub">伺服器正在辨識 PDF 內容，請勿關閉此頁面</div>
+      <div class="parse-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+    </div>
+  </div>
+
+  <div class="bg-paths" aria-hidden="true">
+    <svg viewBox="0 0 1440 900" preserveAspectRatio="none">
+      <g>
+        <path d="M-220 80 C 180 220 680 -40 1220 180 C 1460 280 1610 260 1700 320"></path>
+        <path d="M-260 160 C 120 320 620 40 1160 260 C 1400 360 1550 350 1720 410"></path>
+        <path d="M-280 250 C 80 430 600 170 1120 350 C 1360 420 1550 470 1760 540"></path>
+        <path d="M-340 360 C 20 560 560 300 1080 470 C 1310 550 1510 620 1780 690"></path>
+      </g>
+    </svg>
+    <svg class="rev" viewBox="0 0 1440 900" preserveAspectRatio="none">
+      <g>
+        <path d="M-260 760 C 180 540 660 820 1220 620 C 1460 540 1590 500 1750 460"></path>
+        <path d="M-300 680 C 120 480 620 760 1160 560 C 1400 470 1550 430 1740 390"></path>
+        <path d="M-340 590 C 60 430 580 680 1120 500 C 1360 430 1540 380 1760 330"></path>
+        <path d="M-380 500 C 20 370 540 600 1080 440 C 1320 380 1500 330 1780 280"></path>
+      </g>
+    </svg>
+  </div>
+
+  <div id="app-main" class="disabled">
+    <div class="wrap">
+      <div class="hero">
+        <div>
+          <h1><span class="hero-title-glow">華安地政電傳 PDF 解析</span></h1>
+          <p class="sub">請確認資料，無誤後請點選下方確定儲存</p>
+        </div>
+        <div class="hero-chip">Land & Building Workflow</div>
+      </div>
+      <p id="gpu-info"></p>
+      <div id="ocr-gpu-warn" role="status">
+        PyTorch 可偵測 GPU，但 EasyOCR 目前以 CPU 運行；與命令列直接執行時若不一致，請查看伺服器日誌或改用 run_web_console.bat 除錯。
+      </div>
+
+      <div class="card">
+        <h2>上傳 PDF</h2>
+        <input type="file" id="file-input" accept=".pdf,application/pdf" />
+        <div class="uploader-actions">
+          <button type="button" class="btn btn-primary" id="btn-parse" disabled>解析預覽</button>
+        </div>
+        <div id="parse-error" class="err" style="display:none;"></div>
+      </div>
+
+      <div id="preview-section" style="display:none;">
+        <div class="preview-split">
+          <div class="preview-col-left">
+            <div class="card">
+              <h2>欄位確認</h2>
+              <input type="hidden" id="inp-doc-kind" value="" />
+              <p class="pf-kind-badge" id="pf-kind-hint"></p>
+              <div id="preview-fields-container"></div>
+              <!-- 解析預覽成功後與左欄欄位一併顯示，置於最末供填寫 INDEX「備註」 -->
+              <div class="form-field pf-remark-wrap" id="pf-remark-wrap" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid #e5e7eb;">
+                <label for="inp-remark">備註</label>
+                <textarea id="inp-remark" rows="3" placeholder="選填：確定儲存時寫入 INDEX 備註欄"></textarea>
+              </div>
+            </div>
+
+            <div class="card">
+              <button type="button" class="btn btn-success" id="btn-save" disabled>確定儲存</button>
+              <div id="save-msg" style="display:none;"></div>
+            </div>
+          </div>
+
+          <aside class="preview-col-right">
+            <div class="card pdf-pane">
+              <h2>原稿 PDF（頁內捲動預覽）</h2>
+              <div class="pdf-frame-wrap">
+                <div id="pdf-js-scroll" class="pdf-js-scroll">
+                  <div id="pdf-js-container"></div>
+                </div>
+              </div>
+              <div id="pdf-js-error" class="err" style="display:none;margin-top:8px;"></div>
+              <p class="pdf-hint">預覽由 PDF.js 於瀏覽器內繪製，無需安裝 PDF 外掛；可於右側區塊內直接捲動多頁比對。</p>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/vendor/pdfjs/pdf.min.js"></script>
+  <script>
+    const bootOverlay = document.getElementById('boot-overlay');
+    const parseOverlay = document.getElementById('parse-overlay');
+    const parseOverlayTitle = document.getElementById('parse-overlay-title');
+    const parseOverlaySub = document.getElementById('parse-overlay-sub');
+    const appMain = document.getElementById('app-main');
+    const fileInput = document.getElementById('file-input');
+    const btnParse = document.getElementById('btn-parse');
+    const parseError = document.getElementById('parse-error');
+    const previewSection = document.getElementById('preview-section');
+    const previewFieldsContainer = document.getElementById('preview-fields-container');
+    const pfKindHint = document.getElementById('pf-kind-hint');
+    const pdfJsContainer = document.getElementById('pdf-js-container');
+    const pdfJsError = document.getElementById('pdf-js-error');
+    const inpDocKind = document.getElementById('inp-doc-kind');
+    const btnSave = document.getElementById('btn-save');
+    const saveMsg = document.getElementById('save-msg');
+    const gpuWarnFixed = document.getElementById('gpu-warn-fixed');
+    const gpuInfo = document.getElementById('gpu-info');
+    const ocrGpuWarn = document.getElementById('ocr-gpu-warn');
+    const inpRemark = document.getElementById('inp-remark');
+    const pfRemarkWrap = document.getElementById('pf-remark-wrap');
+
+    let modelsReady = false;
+    /** 解析回傳之 excel 快照，存檔時與左欄編輯合併（保留未在 SAMPLE 顯示之鍵） */
+    let excelSnapshot = null;
+
+    /** 設定 PDF.js Worker（與 pdf.min.js 同目錄，本機 static 載入） */
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/static/vendor/pdfjs/pdf.worker.min.js';
+    }
+
+    function showParseOverlay(title, sub) {
+      parseOverlayTitle.textContent = title || '解析中…';
+      parseOverlaySub.textContent = sub || '伺服器正在辨識 PDF 內容，請勿關閉此頁面';
+      parseOverlay.classList.add('visible');
+      parseOverlay.setAttribute('aria-busy', 'true');
+    }
+
+    function hideParseOverlay() {
+      parseOverlay.classList.remove('visible');
+      parseOverlay.setAttribute('aria-busy', 'false');
+    }
+
+    /** 清空 PDF.js 畫布區 */
+    function clearPdfPreview() {
+      pdfJsContainer.innerHTML = '';
+      pdfJsError.style.display = 'none';
+      pdfJsError.textContent = '';
+    }
+
+    /**
+     * 以 PDF.js 將 ArrayBuffer 逐頁繪製至 canvas，於同一捲動區內預覽
+     */
+    async function renderPdfWithPdfJs(pdfArrayBuffer) {
+      clearPdfPreview();
+      if (typeof pdfjsLib === 'undefined') {
+        pdfJsError.textContent = 'PDF.js 未載入，請確認 /static/vendor/pdfjs/ 檔案存在。';
+        pdfJsError.style.display = 'block';
+        return;
+      }
+      try {
+        const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
+        const pdf = await loadingTask.promise;
+        const scrollEl = document.getElementById('pdf-js-scroll');
+        // 以捲動區內寬為準（已扣 padding），讓頁面填滿右欄可視寬度
+        const pad = 16;
+        const maxW = Math.max(260, (scrollEl ? scrollEl.clientWidth : 400) - pad);
+        const dprCap = 2.75;
+        const dpr = Math.min(typeof window !== 'undefined' && window.devicePixelRatio ? window.devicePixelRatio : 1, dprCap);
+        const numPages = pdf.numPages;
+        for (let p = 1; p <= numPages; p++) {
+          const page = await pdf.getPage(p);
+          const baseVp = page.getViewport({ scale: 1 });
+          // CSS 顯示寬度對齊 maxW；繪製時乘 devicePixelRatio 提升銳利度
+          const scaleCss = maxW / baseVp.width;
+          const viewport = page.getViewport({ scale: scaleCss * dpr });
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d', { alpha: false });
+          if (!ctx) throw new Error('無法取得 canvas 2d');
+          const cssW = Math.round(baseVp.width * scaleCss);
+          const cssH = Math.round(baseVp.height * scaleCss);
+          canvas.width = Math.floor(viewport.width);
+          canvas.height = Math.floor(viewport.height);
+          canvas.style.width = cssW + 'px';
+          canvas.style.height = cssH + 'px';
+          const renderTask = page.render({ canvasContext: ctx, viewport });
+          await renderTask.promise;
+          pdfJsContainer.appendChild(canvas);
+        }
+      } catch (e) {
+        pdfJsError.textContent = 'PDF 預覽失敗：' + (e && e.message ? e.message : String(e));
+        pdfJsError.style.display = 'block';
+      }
+    }
+
+    function applyGpuStatus(j) {
+      if (typeof j.gpu_available !== 'boolean') return;
+      if (j.gpu_available) {
+        gpuWarnFixed.style.display = 'none';
+        document.body.classList.remove('has-gpu-warn');
+        if (j.gpu_name) {
+          gpuInfo.textContent = '已偵測 GPU：' + j.gpu_name;
+          gpuInfo.style.display = 'block';
+        } else {
+          gpuInfo.textContent = '';
+          gpuInfo.style.display = 'none';
+        }
+      } else {
+        gpuWarnFixed.style.display = 'block';
+        document.body.classList.add('has-gpu-warn');
+        gpuInfo.textContent = '';
+        gpuInfo.style.display = 'none';
+      }
+      if (j.ready === true && j.gpu_available === true && j.easyocr_gpu === false) {
+        ocrGpuWarn.style.display = 'block';
+      } else {
+        ocrGpuWarn.style.display = 'none';
+      }
+    }
+
+    function setUiEnabled(on) {
+      fileInput.disabled = !on;
+      btnParse.disabled = !on || !fileInput.files.length;
+      btnSave.disabled = !on || !previewSection.style.display || previewSection.style.display === 'none';
+    }
+
+    /** 依 SAMPLE 順序繪製可編輯欄位 */
+    function renderSamplePreviewFields(rows) {
+      previewFieldsContainer.innerHTML = '';
+      if (!rows || !rows.length) {
+        previewFieldsContainer.innerHTML = '<p class="err">無可顯示欄位（請確認地段地號輸出資料夾內 SAMPLE.xlsx 存在）。</p>';
+        return;
+      }
+      for (const row of rows) {
+        const div = document.createElement('div');
+        div.className = 'form-field';
+        const lab = document.createElement('div');
+        lab.className = 'pf-label';
+        lab.textContent = row.header || row.key || '';
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'pf-input';
+        inp.dataset.header = row.header || '';
+        inp.dataset.bucket = row.bucket || '';
+        inp.dataset.key = row.key || '';
+        inp.value = row.value === null || row.value === undefined ? '' : String(row.value);
+        div.appendChild(lab);
+        div.appendChild(inp);
+        previewFieldsContainer.appendChild(div);
+      }
+    }
+
+    /** 蒐集左欄送回後端與 excel_snapshot 合併 */
+    function collectPreviewFieldRows() {
+      const rows = [];
+      previewFieldsContainer.querySelectorAll('input.pf-input').forEach((inp) => {
+        rows.push({
+          header: inp.dataset.header || '',
+          bucket: inp.dataset.bucket || '',
+          key: inp.dataset.key || '',
+          value: inp.value,
+        });
+      });
+      return rows;
+    }
+
+    async function pollStatus() {
+      try {
+        const r = await fetch('/api/status');
+        const j = await r.json();
+        applyGpuStatus(j);
+        if (j.ready) {
+          modelsReady = true;
+          bootOverlay.classList.add('hidden');
+          appMain.classList.remove('disabled');
+          setUiEnabled(true);
+          return true;
+        }
+      } catch (e) { /* 繼續輪詢 */ }
+      return false;
+    }
+
+    (async function bootLoop() {
+      while (!(await pollStatus())) {
+        await new Promise((x) => setTimeout(x, 400));
+      }
+    })();
+
+    fileInput.addEventListener('change', () => {
+      parseError.style.display = 'none';
+      clearPdfPreview();
+      excelSnapshot = null;
+      previewFieldsContainer.innerHTML = '';
+      previewSection.style.display = 'none';
+      if (pfRemarkWrap) pfRemarkWrap.style.display = 'none';
+      if (inpRemark) inpRemark.value = '';
+      btnSave.disabled = true;
+      btnParse.disabled = !modelsReady || !fileInput.files.length;
+    });
+
+    btnParse.addEventListener('click', async () => {
+      parseError.style.display = 'none';
+      saveMsg.style.display = 'none';
+      previewSection.style.display = 'none';
+      if (pfRemarkWrap) pfRemarkWrap.style.display = 'none';
+      if (inpRemark) inpRemark.value = '';
+      clearPdfPreview();
+      excelSnapshot = null;
+      previewFieldsContainer.innerHTML = '';
+      btnSave.disabled = true;
+      const f = fileInput.files[0];
+      if (!f) return;
+      if (!f.name.toLowerCase().endsWith('.pdf')) {
+        parseError.textContent = '僅限上傳PDF檔';
+        parseError.style.display = 'block';
+        return;
+      }
+
+      showParseOverlay('解析中…', '伺服器正在辨識 PDF 內容，請勿關閉此頁面');
+      btnParse.disabled = true;
+
+      let pdfBuf = null;
+      try {
+        pdfBuf = await f.arrayBuffer();
+        const fd = new FormData();
+        fd.append('file', new File([pdfBuf], f.name, { type: 'application/pdf' }));
+
+        const r = await fetch('/api/parse', { method: 'POST', body: fd });
+        const j = await r.json();
+        if (!j.ok) {
+          parseError.textContent = j.error || '解析失敗';
+          parseError.style.display = 'block';
+          return;
+        }
+
+        parseOverlayTitle.textContent = '產生預覽中…';
+        parseOverlaySub.textContent = '正在於瀏覽器內繪製 PDF 頁面，頁數多時請稍候';
+
+        inpDocKind.value = j.doc_kind || 'land';
+        const isB = (j.doc_kind || '') === 'building';
+        pfKindHint.textContent = isB ? '文件類型：建物' : '文件類型：土地';
+        excelSnapshot = j.excel_snapshot || {
+          excel_data_mark: {},
+          excel_data_ownership: {},
+          excel_data_building: {},
+        };
+        renderSamplePreviewFields(j.preview_fields || []);
+        // 備註置於左欄欄位清單最末，與預覽區一併顯示
+        if (pfRemarkWrap) pfRemarkWrap.style.display = 'block';
+
+        // 先顯示預覽區再量測捲動區寬度，否則 display:none 時 clientWidth 不正確
+        previewSection.style.display = 'block';
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        await renderPdfWithPdfJs(pdfBuf);
+        btnSave.disabled = false;
+      } catch (e) {
+        parseError.textContent = '網路或伺服器錯誤';
+        parseError.style.display = 'block';
+      } finally {
+        hideParseOverlay();
+        btnParse.disabled = !modelsReady || !fileInput.files.length;
+      }
+    });
+
+    btnSave.addEventListener('click', async () => {
+      saveMsg.style.display = 'none';
+      const doc_kind = inpDocKind.value.trim() || 'land';
+      if (!excelSnapshot) {
+        saveMsg.className = 'err';
+        saveMsg.textContent = '缺少解析快照，請重新執行「解析預覽」。';
+        saveMsg.style.display = 'block';
+        return;
+      }
+      // remark：左欄最末備註，後端寫入 INDEX「備註」欄
+      const body = {
+        doc_kind,
+        remark: (inpRemark && inpRemark.value) ? inpRemark.value.trim() : '',
+        preview_fields: collectPreviewFieldRows(),
+        excel_snapshot: excelSnapshot,
+      };
+      btnSave.disabled = true;
+      try {
+        const r = await fetch('/api/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        let j = {};
+        try { j = await r.json(); } catch (_) {}
+        if (!r.ok) {
+          saveMsg.className = 'err';
+          const d = j.detail;
+          saveMsg.textContent =
+            typeof d === 'string' ? d : d ? JSON.stringify(d) : '存檔失敗';
+          saveMsg.style.display = 'block';
+          return;
+        }
+        saveMsg.className = 'ok';
+        saveMsg.textContent = '已寫入 INDEX，編號：' + j.index_no;
+        saveMsg.style.display = 'block';
+      } catch (e) {
+        saveMsg.className = 'err';
+        saveMsg.textContent = '存檔請求失敗';
+        saveMsg.style.display = 'block';
+      } finally {
+        btnSave.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
