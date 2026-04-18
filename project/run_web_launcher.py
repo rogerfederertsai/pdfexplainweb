@@ -23,6 +23,35 @@ CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 _uvicorn_proc: subprocess.Popen | None = None
 
+# config.bat 位於專案根目錄（ROOT 的上一層）
+_CONFIG_BAT = ROOT.parent / "config.bat"
+
+
+def _load_config_bat(env: dict) -> None:
+    """
+    讀取 config.bat，解析 'set KEY=VALUE' 行並注入 env dict。
+    只在對應的 key 尚未被外部環境設定（或為空）時才覆寫，
+    避免從 start_server.bat 正常啟動時被二次覆蓋。
+    """
+    if not _CONFIG_BAT.is_file():
+        return
+    try:
+        for raw in _CONFIG_BAT.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = raw.strip()
+            # 只處理 set KEY=VALUE 形式（忽略 @echo off、:: 等）
+            if not line.lower().startswith("set "):
+                continue
+            body = line[4:].strip()
+            if "=" not in body:
+                continue
+            key, _, val = body.partition("=")
+            key = key.strip()
+            val = val.strip()
+            if key and not env.get(key, "").strip():
+                env[key] = val
+    except OSError:
+        pass
+
 
 def _log(msg: str) -> None:
     try:
@@ -119,8 +148,9 @@ def main() -> int:
     global _uvicorn_proc
     py = sys.executable
     env = os.environ.copy()
+    # 自動讀取 config.bat，確保帳密等設定一定會注入子行程（不論從哪個 .bat 啟動）
+    _load_config_bat(env)
     env["NO_COLOR"] = "1"
-    # 停用 HuggingFace XET 傳輸協定，改用穩定的 HTTP 下載，避免多次中斷重啟
     env["HF_HUB_DISABLE_XET"] = "1"
     args = [
         py,

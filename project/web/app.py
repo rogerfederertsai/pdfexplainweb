@@ -56,6 +56,7 @@ from fastapi import BackgroundTasks, Cookie, FastAPI, File, Form, HTTPException,
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.middleware.cors import CORSMiddleware
 
 from config import OUTPUT_BY_SECTION_LOT, USE_VLM
 from core.engine import get_easyocr_using_gpu, warmup_models
@@ -299,6 +300,16 @@ def _warmup_worker() -> None:
 
 
 app = FastAPI(title="華安地政電傳解析", version="1.0")
+
+# 區網／Tunnel 常以不同 IP 或主機名存取；補上 CORS 可避免部分瀏覽器誤判跨網域而出現「Failed to fetch」
+# allow_credentials=True 時不可使用 allow_origins=["*"]，故以 regex 回顯實際 Origin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https?://.+",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ── 上傳大小限制 Middleware（50 MB）────────────────────────────────────────────
 _MAX_UPLOAD_BYTES: int = 50 * 1024 * 1024   # 50 MB

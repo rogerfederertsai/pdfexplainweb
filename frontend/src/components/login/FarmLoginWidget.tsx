@@ -63,7 +63,15 @@ export function FarmLoginWidget({
       // 若模型尚未 ready，App 仍會留在登入畫面並鎖定輸入，直到 modelsReady=true。
       onCookieAuthedChange(true);
     } catch (err) {
-      setLoginError(err instanceof Error ? err.message : "登入失敗");
+      const raw = err instanceof Error ? err.message : String(err);
+      // 瀏覽器在連線失敗、CORS、或 HTTPS 混用時常只丟 Failed to fetch，改寫成可讀說明
+      if (/failed to fetch/i.test(raw) || raw === "Load failed" || raw === "NetworkError when attempting to fetch resource.") {
+        setLoginError(
+          "無法連到伺服器（Failed to fetch）。請確認網址列為「http://伺服器IP:8000」、同 Wi‑Fi、關閉僅 HTTPS／VPN 後再試；若仍失敗請在伺服器電腦檢查防火牆是否允許 TCP 8000。"
+        );
+      } else {
+        setLoginError(raw || "登入失敗");
+      }
     } finally {
       setLoginBusy(false);
     }

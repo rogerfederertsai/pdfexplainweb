@@ -3,7 +3,7 @@ cd /d "%~dp0..\project"
 setlocal EnableExtensions
 set NO_COLOR=1
 
-rem 與 run_web_hidden.vbs 一致：優先 py -3，否則 python（避免裝到 A 顆 Python、跑後端卻用 B 顆）
+rem Same as run_web_hidden.vbs: prefer py -3, else python (avoid mixing two Python installs)
 set "PYRUN="
 where py >nul 2>&1
 if errorlevel 1 goto try_python
@@ -21,21 +21,21 @@ set "PYRUN=python"
 goto have_python
 
 :no_python
-rem PATH 找不到時，嘗試使用使用者層級安裝路徑（例如 LocalAppData\Programs\Python\Python312）
+rem If not on PATH, try per-user install under LocalAppData\Programs\Python\Python3*
 for /d %%D in ("%LocalAppData%\Programs\Python\Python3*") do (
   if exist "%%~fD\python.exe" (
     set "PYRUN=%%~fD\python.exe"
     goto have_python
   )
 )
-echo ERROR: 找不到 Python。請安裝 3.10+ 並勾選 PATH，或安裝 Python Launcher ^(py^)。
-echo        也可直接使用完整路徑執行 python.exe -m pip ...
+echo ERROR: Python not found. Install 3.10+ with PATH, or install Python Launcher (py).
+echo        You can also run pip using full path to python.exe ...
 exit /b 1
 
 :have_python
 echo Using %PYRUN%
 echo [1/3] PyTorch with CUDA 12.8 (NVIDIA, from pytorch.org)
-echo      RTX 50 系列 ^(Blackwell / sm_120^) 需 cu128 以上；cu124 版 torch 常導致 CUDA 對 PyTorch 不可用。
+echo      RTX 50 (Blackwell / sm_120) needs cu128+; cu124 torch often breaks CUDA for PyTorch.
 %PYRUN% -m pip install -U pip
 if errorlevel 1 goto :fail
 %PYRUN% -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
