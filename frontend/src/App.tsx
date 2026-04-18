@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback, Component } from "react";
+import type { ReactNode } from "react";
 import { CheckCircle2, Loader2, Upload, XCircle } from "lucide-react";
 import { BackgroundPaths } from "@/components/ui/background-paths";
 import { FarmLoginWidget } from "@/components/login/FarmLoginWidget";
@@ -6,6 +7,35 @@ import { IDLE_WARMUP, type WarmupSnapshot } from "@/lib/warmupStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+// ── ErrorBoundary：攔截子元件崩潰，顯示友善提示而非空白畫面 ────────────────
+export class AppErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; errMsg: string }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errMsg: "" };
+  }
+  static getDerivedStateFromError(err: unknown) {
+    return { hasError: true, errMsg: err instanceof Error ? err.message : String(err) };
+  }
+  override render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50 p-8">
+          <p className="text-red-600 font-semibold text-lg">頁面發生錯誤，請重新整理（F5）</p>
+          <p className="text-xs text-muted-foreground font-mono break-all max-w-2xl">{this.state.errMsg}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500"
+          >重新整理</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 type FolderItemStatus = "pending" | "processing" | "non_pdf" | "unsupported" | "done" | "error";
 type FolderItem = {
@@ -41,27 +71,35 @@ export default function App() {
   const [downloadReady, setDownloadReady] = useState<boolean>(false);
   const [folderItems, setFolderItems] = useState<FolderItem[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [downloadBusy, setDownloadBusy] = useState(false);
+  const [downloadErr, setDownloadErr] = useState<string>("");
   const folderInputRef = useRef<HTMLInputElement | null>(null);
+  // 下載進行中時，不讓 pagehide 誤判成「關頁」而觸發登出
+  const downloadingRef = useRef(false);
 
   useEffect(() => {
-    // 視為「關閉網頁就登出」：在 tab/window 被關閉或頁面被移除時清除 cookie。
-    const logout = () => {
+    // 「關閉分頁/視窗」才登出；檔案下載導覽不應觸發此事件。
+    const onPageHide = (e: PageTransitionEvent) => {
+      // persisted=true 表示進入 bfcache（前進/後退快取），不是真正離開
+      if (e.persisted) return;
+      // 下載進行中（fetch blob 模式）時不登出
+      if (downloadingRef.current) return;
       try {
-        if (navigator.sendBeacon) {
-          navigator.sendBeacon("/api/logout");
-        } else {
-          void fetch("/api/logout", { method: "POST", keepalive: true });
-        }
-      } catch {
-        // 不影響主要流程
-      }
+        navigator.sendBeacon("/api/logout");
+      } catch { /* 不影響主要流程 */ }
+    };
+    const onBeforeUnload = () => {
+      if (downloadingRef.current) return;
+      try {
+        navigator.sendBeacon("/api/logout");
+      } catch { /* 不影響主要流程 */ }
     };
 
-    window.addEventListener("pagehide", logout);
-    window.addEventListener("beforeunload", logout);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
-      window.removeEventListener("pagehide", logout);
-      window.removeEventListener("beforeunload", logout);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onBeforeUnload);
     };
   }, []);
 
@@ -166,6 +204,8 @@ export default function App() {
   };
 
   const onFolderChange = (nextFiles: FileList | null) => {
+    // 重選資料夾時一律解除「處理中」鎖定，避免錯誤後 UI 卡在轉圈無法再選
+    setProcessBusy(false);
     setProcessErr("");
     setProcessMsg("");
     setDownloadReady(false);
@@ -211,6 +251,7 @@ export default function App() {
     setProcessErr("");
     setProcessMsg("");
 
+    let pollStarted = false;
     try {
       const fd = new FormData();
       fd.append("output_excel_name", excelNameInput || "");
@@ -231,7 +272,13 @@ export default function App() {
       const json = await response.json().catch(() => ({}));
 
       if (!response.ok || !json.ok) {
-        setProcessErr(json?.error || "處理失敗");
+        const detail =
+          typeof json?.detail === "string"
+            ? json.detail
+            : Array.isArray(json?.detail) && json.detail[0]?.msg
+              ? String(json.detail[0].msg)
+              : "";
+        setProcessErr(detail || json?.error || "處理失敗");
         return;
       }
 
@@ -264,6 +311,7 @@ export default function App() {
           const statusJson = await res.json().catch(() => ({}));
           if (!res.ok || !statusJson.ok) {
             setProcessErr(statusJson?.error || "追蹤失敗");
+            setProcessBusy(false);
             return;
           }
 
@@ -293,10 +341,70 @@ export default function App() {
         window.setTimeout(poll, 800);
       };
 
+      pollStarted = true;
       void poll();
     } catch {
       setProcessErr("網路或伺服器錯誤");
+    } finally {
+      // 只要尚未進入背景輪詢，一律解除鎖定（含 API 錯誤、例外、舊 bundle 漏設等）
+      if (!pollStarted) {
+        setProcessBusy(false);
+      }
     }
+  };
+
+  /** 用 fetch+blob 下載 Excel，避免 <a href> 導覽觸發 pagehide 誤登出 */
+  const onDownloadExcel = useCallback(async (jobId: string) => {
+    if (downloadBusy) return;
+    setDownloadBusy(true);
+    setDownloadErr("");
+    downloadingRef.current = true;
+    try {
+      const res = await fetch(
+        `/api/parse_folder_excel_download?job_id=${encodeURIComponent(jobId)}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        const msg = typeof json?.detail === "string" ? json.detail : `下載失敗（${res.status}）`;
+        setDownloadErr(msg);
+        return;
+      }
+      const blob = await res.blob();
+      // 從 Content-Disposition 取得檔名，無則用預設
+      const disposition = res.headers.get("content-disposition") ?? "";
+      const match = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+      const filename = match ? decodeURIComponent(match[1].replace(/"/g, "")) : "output.xlsx";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      // 短暫延遲後釋放 object URL，確保瀏覽器已開始下載
+      window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch {
+      setDownloadErr("網路錯誤，下載失敗，請重試");
+    } finally {
+      setDownloadBusy(false);
+      // 給 pagehide 一點緩衝時間，再解除保護旗標
+      window.setTimeout(() => { downloadingRef.current = false; }, 1000);
+    }
+  }, [downloadBusy]);
+
+  /** 錯誤後手動重置：解除鎖定並清空已選資料夾，避免畫面卡在轉圈 */
+  const onResetFolderAfterError = () => {
+    setProcessBusy(false);
+    setProcessErr("");
+    setProcessMsg("");
+    setDownloadReady(false);
+    setActiveJobId("");
+    setSelectedFiles([]);
+    setFolderItems([]);
+    setFolderRootName("");
+    setExcelNameInput("");
+    if (folderInputRef.current) folderInputRef.current.value = "";
   };
 
   return (
@@ -428,10 +536,15 @@ export default function App() {
               })()}
 
               {processErr && (
-                <Alert variant="destructive">
-                  <AlertTitle>處理失敗</AlertTitle>
-                  <AlertDescription>{processErr}</AlertDescription>
-                </Alert>
+                <div className="space-y-3">
+                  <Alert variant="destructive">
+                    <AlertTitle>處理失敗</AlertTitle>
+                    <AlertDescription>{processErr}</AlertDescription>
+                  </Alert>
+                  <Button type="button" variant="outline" onClick={onResetFolderAfterError}>
+                    清除並重新選擇資料夾
+                  </Button>
+                </div>
               )}
 
               {processMsg && (
@@ -442,13 +555,23 @@ export default function App() {
               )}
 
               {downloadReady && activeJobId && (
-                <div className="pt-2">
-                  <a
-                    href={`/api/parse_folder_excel_download?job_id=${encodeURIComponent(activeJobId)}`}
-                    className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+                <div className="pt-2 space-y-2">
+                  <Button
+                    type="button"
+                    onClick={() => void onDownloadExcel(activeJobId)}
+                    disabled={downloadBusy}
+                    className="bg-blue-600 text-white hover:bg-blue-500"
                   >
-                    下載 Excel
-                  </a>
+                    {downloadBusy ? (
+                      <><Loader2 className="h-4 w-4 animate-spin mr-2" />下載中…</>
+                    ) : "下載 Excel"}
+                  </Button>
+                  {downloadErr && (
+                    <Alert variant="destructive">
+                      <AlertTitle>下載失敗</AlertTitle>
+                      <AlertDescription>{downloadErr}</AlertDescription>
+                    </Alert>
+                  )}
                 </div>
               )}
 
